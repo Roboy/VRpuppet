@@ -1,0 +1,9 @@
+[submodule "src/roboy_communication"]
+	path = src/roboy_communication
+	url = https://github.com/Roboy/roboy_communication
+[submodule "src/common_utilities"]
+	path = src/common_utilities
+	url = https://github.com/Roboy/common_utilities
+[submodule "src/cardsflow_rviz"]
+	path = src/cardsflow_rviz
+	url = https://github.com/CARDSflow/cardsflow_rviz
