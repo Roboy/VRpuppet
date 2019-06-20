@@ -302,6 +302,7 @@ void Robot::init(string urdf_file_path, string viapoints_file_path, vector<strin
     }
 
     joint_state_sub = nh->subscribe("/joint_states", 100, &Robot::JointState, this);
+    joint_target_sub = nh->subscribe("/joint_targets", 100, &Robot::JointTarget, this);
     floating_base_sub = nh->subscribe("/floating_base", 100, &Robot::FloatingBase, this);
     ik_srv = nh->advertiseService("/ik", &Robot::InverseKinematicsService, this);
     ik_two_frames_srv = nh->advertiseService("/ik_multiple_frames", &Robot::InverseKinematicsMultipleFramesService, this);
@@ -378,6 +379,8 @@ VectorXd Robot::resolve_function(MatrixXd &A_eq, VectorXd &b_eq, VectorXd &f_min
 }
 
 void Robot::update() {
+    q = q_target;
+
     ros::Time t0 = ros::Time::now();
     iDynTree::fromEigen(robotstate.world_H_base, world_H_base);
     iDynTree::toEigen(robotstate.jointPos) = q;
@@ -761,6 +764,21 @@ void Robot::JointState(const sensor_msgs::JointStateConstPtr &msg) {
         if (joint_index != iDynTree::JOINT_INVALID_INDEX) {
             q(joint_index) = msg->position[i];
             qd(joint_index) = msg->velocity[i];
+        } else {
+            ROS_ERROR("joint %s not found in model", joint.c_str());
+        }
+        i++;
+    }
+}
+
+void Robot::JointTarget(const sensor_msgs::JointStateConstPtr &msg){
+    const iDynTree::Model &model = kinDynComp.getRobotModel();
+    int i = 0;
+    for (string joint:msg->name) {
+        int joint_index = model.getJointIndex(joint);
+        if (joint_index != iDynTree::JOINT_INVALID_INDEX) {
+            q_target(joint_index) = msg->position[i];
+            qd_target(joint_index) = msg->velocity[i];
         } else {
             ROS_ERROR("joint %s not found in model", joint.c_str());
         }

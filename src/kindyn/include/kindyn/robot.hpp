@@ -174,6 +174,12 @@ namespace vrpuppet {
             void JointState(const sensor_msgs::JointStateConstPtr &msg);
 
             /**
+             * Callback for the joint target of the robot.
+             * @param msg message containing joint_name/angle information
+             */
+            void JointTarget(const sensor_msgs::JointStateConstPtr &msg);
+
+            /**
              * Callback for the floating base world pose. This can come from gazebo, the real robot or else where.
              * @param msg message containing the 6 DoF pose of the floating base
              */
@@ -187,10 +193,9 @@ namespace vrpuppet {
             boost::shared_ptr <ros::AsyncSpinner> spinner; /// async ROS spinner
             ros::Publisher robot_state_pub, tendon_state_pub, joint_state_pub; /// ROS robot pose and tendon publisher
             ros::Publisher robot_state_target_pub, tendon_state_target_pub, joint_state_target_pub; /// target publisher
-            ros::Subscriber controller_type_sub, joint_state_sub, floating_base_sub, interactive_marker_sub; /// ROS subscribers
+            ros::Subscriber controller_type_sub, joint_state_sub, joint_target_sub, floating_base_sub, interactive_marker_sub; /// ROS subscribers
             ros::ServiceServer ik_srv, ik_two_frames_srv, fk_srv;
             map<string,boost::shared_ptr<actionlib::SimpleActionServer<roboy_control_msgs::MoveEndEffectorAction>>> moveEndEffector_as;
-
 
             iDynTree::KinDynComputations kinDynComp, kinDynCompTarget; /// the full robot model
             map<string,iDynTree::KinDynComputations> ik_models; /// the robot models for each endeffector

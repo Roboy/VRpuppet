@@ -35,8 +35,7 @@ public:
         update();
     };
     /**
-     * Updates the robot model and integrates the robot model using the forwardKinematics function
-     * with a small step length
+     * Updates the robot model
      */
     void read(){
         update();
@@ -47,9 +46,9 @@ public:
     void write(){
 
     };
+
     ros::NodeHandlePtr nh; /// ROS nodehandle
     ros::Publisher motor_command; /// motor command publisher
-    ros::ServiceClient motor_config, sphere_left_axis0_params, sphere_left_axis1_params, sphere_left_axis2_params;
     map<string,ros::ServiceClient> motor_control_mode;
     vector<string> endeffectors = {"spine_right"}; //"head", "shoulder_left", "shoulder_right",
     map<string, vector<string>> endeffector_jointnames;

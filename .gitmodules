@@ -7,3 +7,6 @@
 [submodule "src/cardsflow_rviz"]
 	path = src/cardsflow_rviz
 	url = https://github.com/CARDSflow/cardsflow_rviz
+[submodule "src/robots"]
+	path = src/robots
+	url = https://github.com/CARDSflow/robots
