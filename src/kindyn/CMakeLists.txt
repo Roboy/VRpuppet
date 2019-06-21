@@ -86,6 +86,14 @@ target_link_libraries(kindyn ${catkin_LIBRARIES} ${iDynTree_LIBRARIES} ${qpOASES
 add_executable( VRpuppet src/robots/VRpuppet.cpp)
 target_link_libraries(VRpuppet ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
 
+# roboy_icecream
+add_executable( roboy_icecream src/robots/roboy_icecream.cpp)
+target_link_libraries(roboy_icecream ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# VRpuppet
+add_executable( nlopt_test src/nlopt_test.cpp)
+target_link_libraries(nlopt_test ${catkin_LIBRARIES} -lnlopt)
+
 #==============================================================================
 # Installation
 #==============================================================================

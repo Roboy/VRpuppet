@@ -10,3 +10,6 @@
 [submodule "src/roboy_rqt_plugins"]
 	path = src/roboy_rqt_plugins
 	url = https://github.com/Roboy/roboy_rqt_plugins
+[submodule "src/robots"]
+	path = src/robots
+	url = https://github.com/CARDSflow/robots
