@@ -4,6 +4,7 @@
 #include <roboy_middleware_msgs/ControlMode.h>
 #include <common_utilities/CommonDefinitions.h>
 #include <roboy_control_msgs/SetControllerParameters.h>
+#include <std_srvs/Empty.h>
 
 using namespace std;
 
@@ -22,33 +23,108 @@ public:
         }
         nh = ros::NodeHandlePtr(new ros::NodeHandle);
         motor_command = nh->advertise<roboy_middleware_msgs::MotorCommand>("/roboy/middleware/MotorCommand",1);
-        for(auto ef:endeffectors) {
-            motor_control_mode[ef] = nh->serviceClient<roboy_middleware_msgs::ControlMode>(
-                    "/roboy/" + ef + "/middleware/ControlMode");
-            nh->getParam((ef+"/joints").c_str(),endeffector_jointnames[ef]);
+        motor_status_sub = nh->subscribe("roboy/middleware/MotorStatus",1,&RoboyIcecream::MotorStatus, this);
+        init_pose = nh->advertiseService("init_pose",&RoboyIcecream::initPose,this);
+        for(auto part:body_parts) {
+            motor_control_mode[part] = nh->serviceClient<roboy_middleware_msgs::ControlMode>(
+                    "/roboy/" + part + "/middleware/ControlMode");
+            nh->getParam((part+"/joints").c_str(),endeffector_jointnames[part]);
         }
         vector<string> joint_names;
         nh->getParam("joint_names", joint_names);
         init(urdf,cardsflow_xml,joint_names);
-        // if we do not get the robot state externally, we use the forwardKinematics function to integrate the robot state
         nh->getParam("external_robot_state", external_robot_state);
-        roboy_middleware_msgs::ControlMode msg;
-        msg.request.control_mode = POSITION;
-        msg.request.set_point = 0;
-        for(auto control:motor_control_mode){
-            if(!control.second.call(msg))
-                ROS_WARN("failed to change control mode to position");
-        }
-        update();
 
-//        for(auto ef:endeffectors) {
-//            for(int i=0;i<sim_motors[ef].size();i++)
-//                l_offset[ef][i] = l[sim_motors[ef][i]];
-//        }
+        update();
     };
+
+    bool initPose(std_srvs::Empty::Request &req,
+                  std_srvs::Empty::Response &res){
+        initialized = false;
+        ROS_INFO("changing control mode to DISPLACEMENT");
+        for(auto part:body_parts){
+            roboy_middleware_msgs::ControlMode msg;
+            msg.request.control_mode = DISPLACEMENT;
+            msg.request.set_point = 20;
+            msg.request.motor_id = motors[part];
+            if(!motor_control_mode[part].call(msg))
+                ROS_WARN("failed to change control mode to DISPLACEMENT for %s", part.c_str());
+        }
+        ros::Duration d(5);
+        ROS_INFO("sleeping for 5 seconds");
+        d.sleep();
+        ROS_INFO("saving position offsets");
+        for(auto part:body_parts) {
+            for(int i=0;i<sim_motors[part].size();i++) {
+                l_offset[part][i] = l[sim_motors[part][i]];
+            }
+        }
+        ROS_INFO("changing control mode to POSITION");
+        for(auto part:body_parts){
+            for(int i=0;i<sim_motors[part].size();i++) {
+                roboy_middleware_msgs::ControlMode msg;
+                msg.request.control_mode = POSITION;
+                msg.request.set_point = position[part][i];
+                msg.request.motor_id.push_back(motors[part][i]);
+                if (!motor_control_mode[part].call(msg))
+                    ROS_WARN("failed to change control mode to POSITION for %s", part.c_str());
+            }
+        }
+        ROS_INFO("pose init done");
+        initialized = true;
+        return true;
+    }
+
+    void MotorStatus(const roboy_middleware_msgs::MotorStatus::ConstPtr &msg){
+        if(msg->id==3){
+            int j = 0;
+            for(int i=0;i<9;i++) {
+                position["shoulder_left"][j] = msg->position[i];
+                velocity["shoulder_left"][j] = msg->velocity[i];
+                displacement["shoulder_left"][j] = msg->displacement[i];
+                j++;
+            }
+            j = 0;
+            for(int i=9;i<15;i++) {
+                position["arms"][j] = msg->position[i];
+                velocity["arms"][j] = msg->velocity[i];
+                displacement["arms"][j] = msg->displacement[i];
+                j++;
+            }
+            j = 0;
+            for(int i=15;i<21;i++) {
+                position["leg_left"][j] = msg->position[i];
+                velocity["leg_left"][j] = msg->velocity[i];
+                displacement["leg_left"][j] = msg->displacement[i];
+                j++;
+            }
+        }else if(msg->id == 4){
+            int j = 0;
+            for(int i=0;i<9;i++) {
+                position["shoulder_right"][j] = msg->position[i];
+                velocity["shoulder_right"][j] = msg->velocity[i];
+                displacement["shoulder_right"][j] = msg->displacement[i];
+                j++;
+            }
+            j = 0;
+            for(int i=9;i<15;i++) {
+                position["head"][j] = msg->position[i];
+                velocity["head"][j] = msg->velocity[i];
+                displacement["head"][j] = msg->displacement[i];
+                j++;
+            }
+            j = 0;
+            for(int i=15;i<21;i++) {
+                position["leg_right"][j] = msg->position[i];
+                velocity["leg_right"][j] = msg->velocity[i];
+                displacement["leg_right"][j] = msg->displacement[i];
+                j++;
+            }
+        }
+    }
+
     /**
-     * Updates the robot model and integrates the robot model using the forwardKinematics function
-     * with a small step length
+     * Updates the robot model
      */
     void read(){
         update();
@@ -57,59 +133,103 @@ public:
      * Sends motor commands to the real robot
      */
     void write(){
-//        stringstream str;
-//        for(auto ef:endeffectors) {
-//            str << ef << ": ";
-//            roboy_middleware_msgs::MotorCommand msg;
-//            msg.id = bodyPartIDs[ef];
-//            msg.motors = motors[ef];
-//            for (int i = 0; i < sim_motors[ef].size(); i++) {
-//                double l_meter = -l[sim_motors[ef][i]];
-//                str  <<  l_meter << "\t";
-//                switch(motor_type[msg.id][i]){
-//                    case MYOBRICK100N:{
-//                        msg.set_points.push_back(myoBrick100NEncoderTicksPerMeter(l_meter));
-//                        break;
-//                    }
-//                    case MYOBRICK300N:{
-//                        msg.set_points.push_back(myoBrick300NEncoderTicksPerMeter(l_meter));
-//                        break;
-//                    }
-//                    case MYOMUSCLE500N:{
-//                        msg.set_points.push_back(myoMuscleEncoderTicksPerMeter(l_meter));
-//                        break;
-//                    }
-//                }
-//            }
-//            str << endl;
-//            motor_command.publish(msg);
-//        }
-//        ROS_INFO_STREAM_THROTTLE(1, str.str());
+        if(initialized) {
+            stringstream str;
+            for (auto part:body_parts) {
+                str << part << ": ";
+                roboy_middleware_msgs::MotorCommand msg;
+                msg.id = bodyPartIDs[part];
+                msg.motors = motors[part];
+                for (int i = 0; i < sim_motors[part].size(); i++) {
+                    double l_meter = -l[sim_motors[part][i]];
+                    str << l_meter << "\t";
+                    switch (motor_type[msg.id][i]) {
+                        case MYOBRICK100N: {
+                            msg.set_points.push_back(myoBrick100NEncoderTicksPerMeter(l_meter));
+                            break;
+                        }
+                        case MYOBRICK300N: {
+                            msg.set_points.push_back(myoBrick300NEncoderTicksPerMeter(l_meter));
+                            break;
+                        }
+                        case MYOMUSCLE500N: {
+                            msg.set_points.push_back(myoMuscleEncoderTicksPerMeter(l_meter));
+                            break;
+                        }
+                    }
+                }
+                str << endl;
+                motor_command.publish(msg);
+            }
+            ROS_INFO_STREAM_THROTTLE(1, str.str());
+        }else{
+            ROS_INFO_THROTTLE(5,"waiting for initialisation, call /init_pose service!!!");
+        }
     };
     ros::NodeHandlePtr nh; /// ROS nodehandle
     ros::Publisher motor_command; /// motor command publisher
-    ros::ServiceClient motor_config, sphere_left_axis0_params, sphere_left_axis1_params, sphere_left_axis2_params;
+    ros::Subscriber motor_status_sub;
+    ros::ServiceServer init_pose;
     map<string,ros::ServiceClient> motor_control_mode;
-    vector<string> endeffectors = {"spine_right"}; //"head", "shoulder_left", "shoulder_right",
+    vector<string> body_parts = {"head","shoulder_left", "shoulder_right", "arms", "leg_left", "leg_right"};
     map<string, vector<string>> endeffector_jointnames;
     bool external_robot_state; /// indicates if we get the robot state externally
-    map<string,vector<short unsigned int>> motors = {
+    bool initialized = false;
+    map<string,vector<uint16_t>> motors = {
             {"head",{9,10,11,12,13,14}},
-            {"shoulder_left",{0,1,2,3,4,5,6,7,8,9,10}},
-            {"shoulder_right",{0,1,2,3,4,5,6,7,8,9,11}},
-            {"spine_right",{9,10,11,12,13,14}}
+            {"shoulder_left",{0,1,2,3,4,5,6,7,8}},
+            {"shoulder_right",{0,1,2,3,4,5,6,7,8}},
+            {"arms",{9,10,11,12}},
+            {"leg_left",{15,16,17,18,19,20}},
+             {"leg_right",{15,16,17,18,19,20}}
     };
-    map<string,vector<short unsigned int>> sim_motors = {
+    map<string,vector<uint16_t>> sim_motors = {
             {"head",{36,37,35,34,32,33}},
-            {"shoulder_left",{0,1,2,3,4,5,6,7,8,9,10}},
-            {"shoulder_right",{0,1,2,3,4,5,6,7,8,9,11}},
-            {"spine_right",{11,10,13,14,12,9}}
+            {"shoulder_left",{0,1,2,3,4,5,6,7,8}},
+            {"shoulder_right",{0,1,2,3,4,5,6,7,8}},
+            {"arms",{9,10,11,12}},
+            {"leg_left",{15,16,17,18,19,20}},
+            {"leg_right",{15,16,17,18,19,20}}
     };
     map<string,vector<double>> l_offset = {
             {"head",{0,0,0,0,0,0}},
             {"shoulder_left",{0,0,0,0,0,0,0,0,0,0,0,0}},
             {"shoulder_right",{0,0,0,0,0,0,0,0,0,0,0,0}},
-            {"spine_right",{0,0,0,0,0,0}}
+            {"arms",{0,0,0,0}},
+            {"leg_left",{0,0,0,0,0,0}},
+            {"leg_right",{0,0,0,0,0,0}}
+    };
+    map<string,vector<double>> position = {
+            {"head",{0,0,0,0,0,0}},
+            {"shoulder_left",{0,0,0,0,0,0,0,0,0,0,0,0}},
+            {"shoulder_right",{0,0,0,0,0,0,0,0,0,0,0,0}},
+            {"arms",{0,0,0,0}},
+            {"leg_left",{0,0,0,0,0,0}},
+            {"leg_right",{0,0,0,0,0,0}}
+    };
+    map<string,vector<double>> velocity = {
+            {"head",{0,0,0,0,0,0}},
+            {"shoulder_left",{0,0,0,0,0,0,0,0,0,0,0,0}},
+            {"shoulder_right",{0,0,0,0,0,0,0,0,0,0,0,0}},
+            {"arms",{0,0,0,0}},
+            {"leg_left",{0,0,0,0,0,0}},
+            {"leg_right",{0,0,0,0,0,0}}
+    };
+    map<string,vector<double>> displacement = {
+            {"head",{0,0,0,0,0,0}},
+            {"shoulder_left",{0,0,0,0,0,0,0,0,0,0,0,0}},
+            {"shoulder_right",{0,0,0,0,0,0,0,0,0,0,0,0}},
+            {"arms",{0,0,0,0}},
+            {"leg_left",{0,0,0,0,0,0}},
+            {"leg_right",{0,0,0,0,0,0}}
+    };
+    map<string,int> bodyPartIDs = {
+            {"head", SHOULDER_RIGHT},
+            {"shoulder_left", SHOULDER_LEFT},
+            {"arms", SHOULDER_LEFT},
+            {"shoulder_right", SHOULDER_RIGHT},
+            {"leg_left", SHOULDER_RIGHT},
+            {"leg_right", SHOULDER_RIGHT}
     };
 };
 
