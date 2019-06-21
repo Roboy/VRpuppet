@@ -7,3 +7,6 @@
 [submodule "src/cardsflow_rviz"]
 	path = src/cardsflow_rviz
 	url = https://github.com/CARDSflow/cardsflow_rviz
+[submodule "src/roboy_rqt_plugins"]
+	path = src/roboy_rqt_plugins
+	url = https://github.com/Roboy/roboy_rqt_plugins
