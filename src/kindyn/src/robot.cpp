@@ -527,14 +527,14 @@ void Robot::update() {
         }
         last_visualization = ros::Time::now();
     }
-    ROS_INFO_STREAM_THROTTLE(5, "q_target " << q_target.transpose().format(fmt));
-    ROS_INFO_STREAM_THROTTLE(5, "qdd " << qdd.transpose().format(fmt));
-    ROS_INFO_STREAM_THROTTLE(5, "qd " << qd.transpose().format(fmt));
-    ROS_INFO_STREAM_THROTTLE(5, "q " << q.transpose().format(fmt));
-    ROS_INFO_STREAM_THROTTLE(5, "l " << l.transpose().format(fmt));
-    ROS_INFO_STREAM_THROTTLE(5, "ld " << Ld[0].transpose().format(fmt));
-    ROS_INFO_STREAM_THROTTLE(5, "torques " << torques.transpose().format(fmt));
-    ROS_INFO_STREAM_THROTTLE(5, "cable_forces " << cable_forces.transpose().format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "q_target " << q_target.transpose().format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "qdd " << qdd.transpose().format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "qd " << qd.transpose().format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "q " << q.transpose().format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "l " << l.transpose().format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "ld " << Ld[0].transpose().format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "torques " << torques.transpose().format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "cable_forces " << cable_forces.transpose().format(fmt));
 }
 
 bool Robot::ForwardKinematicsService(roboy_middleware_msgs::ForwardKinematics::Request &req,
