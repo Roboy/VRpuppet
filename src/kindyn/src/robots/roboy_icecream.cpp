@@ -61,63 +61,66 @@ public:
     bool initPose(std_srvs::Empty::Request &req,
                   std_srvs::Empty::Response &res){
         initialized = false;
-        ROS_INFO("changing control mode to init mode for each part");
-        for(auto part:body_parts){
-            roboy_middleware_msgs::MotorConfigService msg;
-            for (int i = 0; i < sim_motor_ids[part].size(); i++) {
-                msg.request.config.motors.push_back(real_motor_ids[part][i]);
-                msg.request.config.control_mode.push_back(init_mode[part]);
-                msg.request.config.output_pos_max.push_back(300);
-                msg.request.config.output_neg_max.push_back(-300);
-                msg.request.config.sp_pos_max.push_back(100000);
-                msg.request.config.sp_neg_max.push_back(-100000);
-                msg.request.config.kp.push_back(100);
-                msg.request.config.kd.push_back(0);
-                msg.request.config.ki.push_back(0);
-                msg.request.config.forward_gain.push_back(0);
-                msg.request.config.dead_band.push_back(0);
-                msg.request.config.integral_pos_max.push_back(0);
-                msg.request.config.integral_neg_max.push_back(0);
-                msg.request.config.output_divider.push_back(0);
-                msg.request.config.setpoint.push_back(init_setpoint[part]);
-                motor_config[part].call(msg);
-            }
-        }
-        ros::Duration d(5);
-        ROS_INFO("sleeping for 5 seconds");
-        d.sleep();
+        // ROS_INFO("changing control mode to init mode for each part");
+        // for(auto part:body_parts){
+        //     roboy_middleware_msgs::MotorConfigService msg;
+        //     for (int i = 0; i < sim_motor_ids[part].size(); i++) {
+        //         msg.request.config.motors.push_back(real_motor_ids[part][i]);
+        //         msg.request.config.control_mode.push_back(init_mode[part]);
+        //         msg.request.config.output_pos_max.push_back(300);
+        //         msg.request.config.output_neg_max.push_back(-300);
+        //         msg.request.config.sp_pos_max.push_back(100000);
+        //         msg.request.config.sp_neg_max.push_back(-100000);
+        //         msg.request.config.kp.push_back(100);
+        //         msg.request.config.kd.push_back(0);
+        //         msg.request.config.ki.push_back(0);
+        //         msg.request.config.forward_gain.push_back(0);
+        //         msg.request.config.dead_band.push_back(0);
+        //         msg.request.config.integral_pos_max.push_back(0);
+        //         msg.request.config.integral_neg_max.push_back(0);
+        //         msg.request.config.output_divider.push_back(0);
+        //         msg.request.config.setpoint.push_back(init_setpoint[part]);
+        //         motor_config[part].call(msg);
+        //     }
+        // }
+        // ros::Duration d(5);
+        // ROS_INFO("sleeping for 5 seconds");
+        // d.sleep();
         while(!motor_status_received[0] || !motor_status_received[1])
             ROS_INFO_THROTTLE(1,"waiting to receive motor status from both fpgas");
-        ROS_INFO("saving position offsets");
+        stringstream str;
+        str << "saving position offsets:" << endl << "sim motor id   |  real motor id  |   position offset (ticks)  | length offset(m)" << endl;
         for(auto part:body_parts) {
             for(int i=0;i<sim_motor_ids[part].size();i++) {
                 l_offset[part][i] = l[sim_motor_ids[part][i]] - myoMuscleMeterPerEncoderTick(position[part][i]);
+                str << sim_motor_ids[part][i] << "\t|\t" << real_motor_ids[part][i] << "\t|\t" << position[part][i] << "\t|\t" << l_offset[part][i] << endl;
             }
         }
-        ROS_INFO("changing control mode to POSITION");
-        for(auto part:body_parts){
-            roboy_middleware_msgs::MotorConfigService msg;
-            for (int i = 0; i < sim_motor_ids[part].size(); i++) {
-                msg.request.config.motors.push_back(real_motor_ids[part][i]);
-                msg.request.config.control_mode.push_back(POSITION);
-                msg.request.config.output_pos_max.push_back(500);
-                msg.request.config.output_neg_max.push_back(-500);
-                msg.request.config.sp_pos_max.push_back(100000);
-                msg.request.config.sp_neg_max.push_back(-100000);
-                msg.request.config.kp.push_back(1);
-                msg.request.config.kd.push_back(0);
-                msg.request.config.ki.push_back(0);
-                msg.request.config.forward_gain.push_back(0);
-                msg.request.config.dead_band.push_back(0);
-                msg.request.config.integral_pos_max.push_back(0);
-                msg.request.config.integral_neg_max.push_back(0);
-                msg.request.config.output_divider.push_back(5);
-                msg.request.config.setpoint.push_back(position[part][i]);
-            }
-            motor_config[part].call(msg);
-        }
-        ROS_INFO("pose init done");
-        initialized = true;
+        ROS_INFO_STREAM(str.str());
+        // ROS_INFO("changing control mode to POSITION");
+        // for(auto part:body_parts){
+        //     roboy_middleware_msgs::MotorConfigService msg;
+        //     for (int i = 0; i < sim_motor_ids[part].size(); i++) {
+        //         msg.request.config.motors.push_back(real_motor_ids[part][i]);
+        //         msg.request.config.control_mode.push_back(POSITION);
+        //         msg.request.config.output_pos_max.push_back(500);
+        //         msg.request.config.output_neg_max.push_back(-500);
+        //         msg.request.config.sp_pos_max.push_back(100000);
+        //         msg.request.config.sp_neg_max.push_back(-100000);
+        //         msg.request.config.kp.push_back(1);
+        //         msg.request.config.kd.push_back(0);
+        //         msg.request.config.ki.push_back(0);
+        //         msg.request.config.forward_gain.push_back(0);
+        //         msg.request.config.dead_band.push_back(0);
+        //         msg.request.config.integral_pos_max.push_back(0);
+        //         msg.request.config.integral_neg_max.push_back(0);
+        //         msg.request.config.output_divider.push_back(5);
+        //         msg.request.config.setpoint.push_back(position[part][i]);
+        //     }
+        //     motor_config[part].call(msg);
+        // }
+        // ROS_INFO("pose init done");
+        // initialized = true;
         return true;
     }
 
@@ -193,38 +196,38 @@ public:
      * Sends motor commands to the real robot
      */
     void write(){
-        if(initialized) {
-            stringstream str;
-            for (auto part:body_parts) {
-                str << part << ": ";
-                roboy_middleware_msgs::MotorCommand msg;
-                msg.id = bodyPartIDs[part];
-                msg.motors = real_motor_ids[part];
-                for (int i = 0; i < sim_motor_ids[part].size(); i++) {
-                    double l_meter = (l[sim_motor_ids[part][i]] - l_offset[part][i]);
-                    str << l_meter << "\t";
-                    switch (motor_type[msg.id][i]) {
-                        case MYOBRICK100N: {
-                            msg.set_points.push_back(myoBrick100NEncoderTicksPerMeter(l_meter));
-                            break;
-                        }
-                        case MYOBRICK300N: {
-                            msg.set_points.push_back(myoBrick300NEncoderTicksPerMeter(l_meter));
-                            break;
-                        }
-                        case MYOMUSCLE500N: {
-                            msg.set_points.push_back(myoMuscleEncoderTicksPerMeter(l_meter));
-                            break;
-                        }
-                    }
-                }
-                str << endl;
-                motor_command.publish(msg);
-            }
-            ROS_INFO_STREAM_THROTTLE(1, str.str());
-        }else{
-            ROS_INFO_THROTTLE(5,"waiting for initialisation, call /init_pose service!!!");
-        }
+        // if(initialized) {
+        //     stringstream str;
+        //     for (auto part:body_parts) {
+        //         str << part << ": ";
+        //         roboy_middleware_msgs::MotorCommand msg;
+        //         msg.id = bodyPartIDs[part];
+        //         msg.motors = real_motor_ids[part];
+        //         for (int i = 0; i < sim_motor_ids[part].size(); i++) {
+        //             double l_meter = (l[sim_motor_ids[part][i]] - l_offset[part][i]);
+        //             str << l_meter << "\t";
+        //             switch (motor_type[msg.id][i]) {
+        //                 case MYOBRICK100N: {
+        //                     msg.set_points.push_back(myoBrick100NEncoderTicksPerMeter(l_meter));
+        //                     break;
+        //                 }
+        //                 case MYOBRICK300N: {
+        //                     msg.set_points.push_back(myoBrick300NEncoderTicksPerMeter(l_meter));
+        //                     break;
+        //                 }
+        //                 case MYOMUSCLE500N: {
+        //                     msg.set_points.push_back(myoMuscleEncoderTicksPerMeter(l_meter));
+        //                     break;
+        //                 }
+        //             }
+        //         }
+        //         str << endl;
+        //         motor_command.publish(msg);
+        //     }
+        //     ROS_INFO_STREAM_THROTTLE(1, str.str());
+        // }else{
+        //     ROS_INFO_THROTTLE(5,"waiting for initialisation, call /init_pose service!!!");
+        // }
     };
     ros::NodeHandlePtr nh; /// ROS nodehandle
     ros::Publisher motor_command; /// motor command publisher
