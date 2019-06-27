@@ -26,9 +26,6 @@ public:
             ros::init(argc, argv, "roboy_icecream");
         }
         nh = ros::NodeHandlePtr(new ros::NodeHandle);
-        motor_command = nh->advertise<roboy_middleware_msgs::MotorCommand>("/roboy/middleware/MotorCommand",1);
-        motor_status_sub = nh->subscribe("roboy/middleware/MotorStatus",1,&RoboyIcecream::MotorStatus, this);
-        init_pose = nh->advertiseService("init_pose",&RoboyIcecream::initPose,this);
         for(auto part:body_parts) {
             motor_control_mode[part] = nh->serviceClient<roboy_middleware_msgs::ControlMode>(
                     "/roboy/" + part + "/middleware/ControlMode");
@@ -66,6 +63,9 @@ public:
         init(urdf,cardsflow_xml,joint_names);
         nh->getParam("external_robot_state", external_robot_state);
         update();
+        motor_command = nh->advertise<roboy_middleware_msgs::MotorCommand>("/roboy/middleware/MotorCommand",1);
+        motor_status_sub = nh->subscribe("roboy/middleware/MotorStatus",1,&RoboyIcecream::MotorStatus, this);
+        init_pose = nh->advertiseService("init_pose",&RoboyIcecream::initPose,this);
     };
 
     bool initPose(std_srvs::Empty::Request &req,
@@ -276,7 +276,7 @@ int main(int argc, char *argv[]) {
     if (!ros::isInitialized()) {
         int argc = 0;
         char **argv = NULL;
-        ros::init(argc, argv, "cardsflow_example_robot");
+        ros::init(argc, argv, "VRpuppet");
     }
     ros::NodeHandle nh;
     string urdf, cardsflow_xml;
