@@ -1,5 +1,4 @@
 EESchema Schematic File Version 4
-LIBS:stepper_control-cache
 EELAYER 29 0
 EELAYER END
 $Descr A4 11693 8268
@@ -698,5 +697,33 @@ F 2 "" H 10600 1000 50  0001 C CNN
 F 3 "" H 10600 1000 50  0001 C CNN
 	1    10600 1000
 	1    0    0    -1  
+$EndComp
+$Comp
+L Connector:Conn_01x04_Male J13
+U 1 1 5D360365
+P 8300 4850
+F 0 "J13" H 8272 4732 50  0000 R CNN
+F 1 "Conn_01x04_Male" H 8272 4823 50  0000 R CNN
+F 2 "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical" H 8300 4850 50  0001 C CNN
+F 3 "~" H 8300 4850 50  0001 C CNN
+	1    8300 4850
+	-1   0    0    1   
+$EndComp
+Text Label 8100 4950 2    50   ~ 0
+MISO
+Text Label 8100 4850 2    50   ~ 0
+MOSI
+Text Label 8100 4750 2    50   ~ 0
+SCK
+$Comp
+L power:GND #PWR0119
+U 1 1 5D3651CA
+P 8100 4650
+F 0 "#PWR0119" H 8100 4400 50  0001 C CNN
+F 1 "GND" H 8105 4477 50  0000 C CNN
+F 2 "" H 8100 4650 50  0001 C CNN
+F 3 "" H 8100 4650 50  0001 C CNN
+	1    8100 4650
+	0    1    1    0   
 $EndComp
 $EndSCHEMATC
