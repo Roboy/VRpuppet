@@ -16,3 +16,9 @@
 [submodule "src/roboy_state_estimator"]
 	path = src/roboy_state_estimator
 	url = https://github.com/Roboy/roboy_state_estimator
+[submodule "hardware/stepper_control/arduino-kicad-library"]
+	path = hardware/stepper_control/arduino-kicad-library
+	url = https://github.com/Alarm-Siren/arduino-kicad-library
+[submodule "hardware/stepper_control/kicad_db"]
+	path = hardware/stepper_control/kicad_db
+	url = https://github.com/Roboy/kicad_db
