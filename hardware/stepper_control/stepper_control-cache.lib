@@ -185,11 +185,39 @@ X ~ENABLE 9 -400 100 100 R 50 50 1 1 I
 ENDDRAW
 ENDDEF
 #
-# arduino_Arduino_Mega2560_Shield
+# power_+12V
 #
-DEF arduino_Arduino_Mega2560_Shield XA 0 40 Y Y 1 F N
+DEF power_+12V #PWR 0 0 Y Y 1 F P
+F0 "#PWR" 0 -150 50 H I C CNN
+F1 "power_+12V" 0 140 50 H V C CNN
+F2 "" 0 0 50 H I C CNN
+F3 "" 0 0 50 H I C CNN
+DRAW
+P 2 0 1 0 -30 50 0 100 N
+P 2 0 1 0 0 0 0 100 N
+P 2 0 1 0 0 100 30 50 N
+X +12V 1 0 0 0 U 50 50 1 1 W N
+ENDDRAW
+ENDDEF
+#
+# power_GND
+#
+DEF power_GND #PWR 0 0 Y Y 1 F P
+F0 "#PWR" 0 -250 50 H I C CNN
+F1 "power_GND" 0 -150 50 H V C CNN
+F2 "" 0 0 50 H I C CNN
+F3 "" 0 0 50 H I C CNN
+DRAW
+P 6 0 1 0 0 0 0 -50 50 -50 0 -100 -50 -50 0 -50 N
+X GND 1 0 0 0 D 50 50 1 1 W N
+ENDDRAW
+ENDDEF
+#
+# stepper_control-rescue_Arduino_Mega2560_Shield-arduino
+#
+DEF stepper_control-rescue_Arduino_Mega2560_Shield-arduino XA 0 40 Y Y 1 F N
 F0 "XA" 100 0 60 V V C CNN
-F1 "arduino_Arduino_Mega2560_Shield" -100 0 60 V V C CNN
+F1 "stepper_control-rescue_Arduino_Mega2560_Shield-arduino" -100 0 60 V V C CNN
 F2 "" 700 2750 60 H I C CNN
 F3 "" 700 2750 60 H I C CNN
 $FPLIST
@@ -329,34 +357,6 @@ X SPI_SCK SCK -50 2600 300 D 50 50 1 1 O C
 X SCL SCL -1300 1050 300 R 50 50 1 1 B C
 X SDA SDA -1300 1150 300 R 50 50 1 1 B
 X VIN VIN -1300 -2150 300 R 50 50 1 1 W
-ENDDRAW
-ENDDEF
-#
-# power_+12V
-#
-DEF power_+12V #PWR 0 0 Y Y 1 F P
-F0 "#PWR" 0 -150 50 H I C CNN
-F1 "power_+12V" 0 140 50 H V C CNN
-F2 "" 0 0 50 H I C CNN
-F3 "" 0 0 50 H I C CNN
-DRAW
-P 2 0 1 0 -30 50 0 100 N
-P 2 0 1 0 0 0 0 100 N
-P 2 0 1 0 0 100 30 50 N
-X +12V 1 0 0 0 U 50 50 1 1 W N
-ENDDRAW
-ENDDEF
-#
-# power_GND
-#
-DEF power_GND #PWR 0 0 Y Y 1 F P
-F0 "#PWR" 0 -250 50 H I C CNN
-F1 "power_GND" 0 -150 50 H V C CNN
-F2 "" 0 0 50 H I C CNN
-F3 "" 0 0 50 H I C CNN
-DRAW
-P 6 0 1 0 0 0 0 -50 50 -50 0 -100 -50 -50 0 -50 N
-X GND 1 0 0 0 D 50 50 1 1 W N
 ENDDRAW
 ENDDEF
 #

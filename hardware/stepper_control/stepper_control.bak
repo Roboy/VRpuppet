@@ -507,7 +507,7 @@ Text Label 7000 4500 0    50   ~ 0
 MOSI
 Text Label 7000 4600 0    50   ~ 0
 SCK
-Text Label 2250 5950 3    50   ~ 0
+Text Label 5850 3350 1    50   ~ 0
 SS
 Text Label 10200 5550 2    50   ~ 0
 UP_motor0

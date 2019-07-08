@@ -1,5 +1,6 @@
 EESchema Schematic File Version 4
-EELAYER 29 0
+LIBS:stepper_control-cache
+EELAYER 26 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
@@ -491,7 +492,7 @@ Wire Wire Line
 	2350 3350 2450 3350
 Connection ~ 2450 3350
 $Comp
-L arduino:Arduino_Mega2560_Shield XA1
+L stepper_control-rescue:Arduino_Mega2560_Shield-arduino XA1
 U 1 1 5D1C0625
 P 4400 4650
 F 0 "XA1" V 4347 2322 60  0000 R CNN
