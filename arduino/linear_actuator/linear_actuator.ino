@@ -9,8 +9,8 @@ class StepperMotorShield
 public:
   StepperMotorShield(byte id, uint16_t period)
   : id_(id),period_(period),
-    motor_command_subscriber_("stepper_motor_shield/MotorCommand", &StepperMotorShield::motor_command_callback, this),
-    emergency_server_("stepper_motor_shield/emergency", &StepperMotorShield::emergency_callback, this)
+    motor_command_subscriber_("/stepper_motor_shield/MotorCommand", &StepperMotorShield::motor_command_callback, this),
+    emergency_server_("/stepper_motor_shield/emergency", &StepperMotorShield::emergency_callback, this)
   {}
 
   void init(ros::NodeHandle& nh)
@@ -25,18 +25,20 @@ public:
 
   void run()
   {
-    if(active_ && ((millis() - last_time_) >= period_))
-    {
-      last_time_ = millis();
+//    if(active_ && ((millis() - last_time_) >= period_))
+//    {
+//      last_time_ = millis();
       for(int i=0;i<10;i++){
-        int dif = current_position[i]-set_point[i];
-        if(dir<0){
+        int dif = set_point[i] - current_position[i];
+        if(dif<0){
+          do_step(false, i, -dif); 
+          current_position[i]+=dif;
+        }else{
           do_step(true, i, dif); 
-        }else if(dir>0){
-          do_step(false, i, dif); 
+          current_position[i]+=dif;
         }
       }
-    }
+//    }
   }
 
   void do_step(byte dir, int motor, int steps){
@@ -47,13 +49,10 @@ public:
         digitalWrite(step_pin[motor],LOW); 
         delayMicroseconds(500); 
       }
-      current_position[motor]+=steps;
   }
 
   void motor_command_callback(const roboy_middleware_msgs::MotorCommand& msg)
   {
-    if(msg.id!=id_)
-      return;
     for(int i=0;i<10;i++){
       set_point[i] = msg.set_points[i];
     }
@@ -82,6 +81,13 @@ void setup()
 {
   nh.initNode();
   stepper_motor_shield.init(nh);
+  
+  for(int i=0;i<6;i++){
+    stepper_motor_shield.do_step(true,i,100);
+  }
+  for(int i=0;i<6;i++){
+    stepper_motor_shield.do_step(false,i,100);
+  }
 }
 
 void loop()
@@ -90,49 +96,3 @@ void loop()
   nh.spinOnce();
   delay(1);
 }
-
-
-
-
-//// defines pins numbers
-//const int stepPin = 3; 
-//const int dirPin = 4; 
-//const int upPin = 5; 
-//const int downPin = 6; 
-//const int downEndSwitch = 7; 
-//const int upEndSwitch = 8; 
-// 
-//void setup() {
-//  // Sets the two pins as Outputs
-//  pinMode(stepPin,OUTPUT); 
-//  pinMode(dirPin,OUTPUT);
-//  pinMode(upPin,INPUT_PULLUP); 
-//  pinMode(downPin,INPUT_PULLUP);
-//  pinMode(upEndSwitch,INPUT_PULLUP); 
-//  pinMode(downEndSwitch,INPUT_PULLUP);
-//  Serial.begin(115200);
-//}
-//void loop() {
-//  if(!digitalRead(downPin)){//down
-//    if(digitalRead(downEndSwitch)){
-//      digitalWrite(dirPin,1); // Enables the motor to move in a particular direction
-//      digitalWrite(stepPin,HIGH); 
-//      delayMicroseconds(500); 
-//      digitalWrite(stepPin,LOW); 
-//      delayMicroseconds(500); 
-//    }else{
-//      Serial.println("endswitch down triggered");
-//    }
-//  }
-//  if(!digitalRead(upPin)){//up
-//      if(digitalRead(upEndSwitch)){
-//        digitalWrite(dirPin,0); // Enables the motor to move in a particular direction
-//        digitalWrite(stepPin,HIGH); 
-//        delayMicroseconds(500); 
-//        digitalWrite(stepPin,LOW); 
-//        delayMicroseconds(500); 
-//      }else{
-//        Serial.println("endswitch up triggered");
-//      }
-//  }
-//}
