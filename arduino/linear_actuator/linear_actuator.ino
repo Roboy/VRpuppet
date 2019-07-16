@@ -19,6 +19,8 @@ public:
     for(int i=0;i<10;i++){
       pinMode(step_pin[i], OUTPUT);
       pinMode(dir_pin[i], OUTPUT);
+      pinMode(release_pin[i], INPUT_PULLUP);
+      pinMode(pull_pin[i], INPUT_PULLUP);
     }
     nh.subscribe(motor_command_subscriber_);
     nh.advertiseService(emergency_server_);
@@ -49,13 +51,31 @@ public:
   }
 
   void do_step(byte dir, int motor, int steps){
-      digitalWrite(dir_pin[motor],dir);
-      for(int i=0;i<steps;i++){ 
+    digitalWrite(dir_pin[motor],dir);
+    for(int i=0;i<steps;i++){ 
+      digitalWrite(step_pin[motor],HIGH); 
+      delayMicroseconds(500); 
+      digitalWrite(step_pin[motor],LOW); 
+      delayMicroseconds(500); 
+      if(!dir && !digitalRead(pull_pin[motor])){
+        return;
+      }
+      if(dir && !digitalRead(release_pin[motor])){
+        return;
+      }
+    }
+  }
+
+  void init_positions(){
+    for(int motor=0;motor<6;motor++){
+      digitalWrite(dir_pin[motor],false);
+      while(digitalRead(pull_pin[motor])){
         digitalWrite(step_pin[motor],HIGH); 
         delayMicroseconds(500); 
         digitalWrite(step_pin[motor],LOW); 
         delayMicroseconds(500); 
       }
+    }
   }
 
   void motor_command_callback(const roboy_middleware_msgs::MotorCommand& msg)
@@ -98,6 +118,7 @@ void setup()
   for(int i=0;i<6;i++){
     stepper_motor_shield.do_step(false,i,100);
   }
+  stepper_motor_shield.init_positions();
 }
 
 void loop()
