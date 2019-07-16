@@ -271,6 +271,7 @@ namespace vrpuppet {
             hardware_interface::CardsflowStateInterface cardsflow_state_interface; /// cardsflow state interface
             hardware_interface::CardsflowCommandInterface cardsflow_command_interface; /// cardsflow command interface
             bool first_update = true;
+            bool external_robot_state; /// indicates if we get the robot state externally
         };
     }
 }

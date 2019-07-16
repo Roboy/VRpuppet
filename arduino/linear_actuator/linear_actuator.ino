@@ -22,7 +22,7 @@ public:
     }
     nh.subscribe(motor_command_subscriber_);
     nh.advertiseService(emergency_server_);
-    pixels = new Adafruit_NeoPixel(11, neopixel_pin, NEO_GRB + NEO_KHZ800);
+    pixels = new Adafruit_NeoPixel(11, neopixel_pin, NEO_GBR + NEO_KHZ800);
     pixels->begin();
     for(int i=0; i<11; i++) { 
       pixels->setPixelColor(i, pixels->Color(0, 150, 0));
@@ -32,24 +32,39 @@ public:
 
   void run()
   {
-//    if(active_ && ((millis() - last_time_) >= period_))
-//    {
-//      last_time_ = millis();
+    if(active_ && ((millis() - last_time_) >= period_))
+    {
+      pixels->setPixelColor(0, pixels->Color(0, 150, 0));
+      last_time_ = millis();
       for(int i=0;i<10;i++){
         int dif = set_point[i] - current_position[i];
         if(dif<0){
+          if(dif<-10)
+            dif = -10;
           do_step(false, i, -dif); 
           current_position[i]+=dif;
-        }else{
+        }else if(dif>0){
+          if(dif>10)
+            dif = 10;
           do_step(true, i, dif); 
           current_position[i]+=dif;
+        }else{
+          pixels->setPixelColor(i+1, pixels->Color(10, 10, 10));
+          pixels->show();
         }
       }
-//    }
+    }else{
+      pixels->setPixelColor(0, pixels->Color(0, 0, 0));
+    }
   }
 
   void do_step(byte dir, int motor, int steps){
       digitalWrite(dir_pin[motor],dir);
+      if(dir)
+        pixels->setPixelColor(motor+1, pixels->Color(0, 150, 0));
+      else
+        pixels->setPixelColor(motor+1, pixels->Color(0, 0, 150));
+      pixels->show();
       for(int i=0;i<steps;i++){ 
         digitalWrite(step_pin[motor],HIGH); 
         delayMicroseconds(500); 

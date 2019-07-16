@@ -52,7 +52,6 @@ public:
     map<string,ros::ServiceClient> motor_control_mode;
     vector<string> endeffectors = {"spine_right"}; //"head", "shoulder_left", "shoulder_right",
     map<string, vector<string>> endeffector_jointnames;
-    bool external_robot_state; /// indicates if we get the robot state externally
     map<string,vector<short unsigned int>> motors = {
             {"head",{9,10,11,12,13,14}},
             {"shoulder_left",{0,1,2,3,4,5,6,7,8,9,10}},
