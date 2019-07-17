@@ -15,11 +15,13 @@ public:
                                         &StepperMotorShield::motor_command_callback, this),
               emergency_server_("/stepper_motor_shield/emergency", &StepperMotorShield::emergency_callback, this),
               zero_server_("/stepper_motor_shield/zero", &StepperMotorShield::zero_callback, this),
+
               e_stop_client_("/m3/emergency_stop")
     {}
     void init(ros::NodeHandle &nh) {
         // set emergency interupt button
         pinMode(e_stop_pin, INPUT_PULLUP);
+
 
         for (int i = 0; i < 10; i++) {
             pinMode(step_pin[i], OUTPUT);
@@ -32,6 +34,7 @@ public:
         nh.advertiseService(emergency_server_);
         nh.advertiseService(zero_server_);
         nh.serviceClient(e_stop_client_);
+
         pixels = new Adafruit_NeoPixel(11, neopixel_pin, NEO_GBR + NEO_KHZ800);
         pixels->begin();
         for (int i = 0; i < 11; i++) {
@@ -43,6 +46,7 @@ public:
     void run() {
 
         e_stop = digitalRead(e_stop_pin);
+
         
 
         if(e_stop && !e_stop_lastState){
@@ -51,6 +55,7 @@ public:
             e_stop_lastState = true;
             msg.data = e_stop;
             e_stop_client_.call(msg, res);
+
         }
         else if(e_stop && e_stop_lastState){
 
@@ -58,9 +63,10 @@ public:
         else if(!e_stop && e_stop_lastState){
                 e_stop_lastState = e_stop;
                 std_srvs::SetBool::Request msg;
-            std_srvs::SetBool::Response res;
+                std_srvs::SetBool::Response res;
                 msg.data = e_stop;
                 e_stop_client_.call(msg, res);
+
         }
         else{
             period_ = millis() - last_time_;
@@ -146,6 +152,7 @@ private:
     const byte id_;
     const byte step_pin[10] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, dir_pin[10] = {24, 25, 26, 27, 28, 29, 30, 31, 32, 33},
             enable_pin[10] = {14, 15, 16, 17, 18, 19, 40, 41, 42, 43}, pull_pin[10] = {A0, A1, A2, A3, A4, A5, A6, A7, A8, A9},
+
             release_pin[10] = {44, 45, 46, 47, 48, 49, 50, 51, 52, 53}, neopixel_pin = 12, e_stop_pin = 50;
     int set_point[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, current_position[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     uint16_t period_;
@@ -159,6 +166,7 @@ private:
     ros::ServiceServer <std_srvs::SetBool::Request, std_srvs::SetBool::Response, StepperMotorShield> emergency_server_;
     ros::ServiceServer <std_srvs::Empty::Request, std_srvs::Empty::Response, StepperMotorShield> zero_server_;
     ros::ServiceClient <std_srvs::SetBool::Request, std_srvs::SetBool::Response> e_stop_client_;
+
     Adafruit_NeoPixel *pixels;
 };
 
