@@ -22,3 +22,6 @@
 [submodule "hardware/stepper_control/kicad_db"]
 	path = hardware/stepper_control/kicad_db
 	url = https://github.com/Roboy/kicad_db
+[submodule "roboy_rqt_plugins"]
+	path = roboy_rqt_plugins
+	url = https://github.com/NexusReflex/roboy_rqt_plugins.git
