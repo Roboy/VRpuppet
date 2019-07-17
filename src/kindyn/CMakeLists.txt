@@ -72,6 +72,33 @@ include_directories(
 #==============================================================================
 # Application
 #==============================================================================
+# CARDSflow hardware interface
+add_library(CardsflowHardwareInterface
+		src/controller/cardsflow_state_interface.cpp
+		src/controller/cardsflow_command_interface.cpp)
+add_dependencies(CardsflowHardwareInterface roboy_middleware_msgs_generate_messages_cpp)
+target_link_libraries(CardsflowHardwareInterface ${catkin_LIBRARIES})
+
+# Cable Length Controller
+add_library(CableLengthController src/controller/cableLengthController.cpp )
+add_dependencies(CableLengthController roboy_middleware_msgs_generate_messages_cpp roboy_control_msgs_generate_messages_cpp)
+target_link_libraries(CableLengthController ${catkin_LIBRARIES} CardsflowHardwareInterface)
+
+# Cable Length Velocity Controller
+add_library(CableLengthVelocityController src/controller/cableLengthVelocityController.cpp )
+add_dependencies(CableLengthVelocityController roboy_middleware_msgs_generate_messages_cpp roboy_control_msgs_generate_messages_cpp)
+target_link_libraries(CableLengthVelocityController ${catkin_LIBRARIES} CardsflowHardwareInterface)
+
+# Torque Position Controller
+add_library(TorquePositionController src/controller/torquePositionController.cpp )
+add_dependencies(TorquePositionController roboy_middleware_msgs_generate_messages_cpp roboy_control_msgs_generate_messages_cpp)
+target_link_libraries(TorquePositionController ${catkin_LIBRARIES} CardsflowHardwareInterface)
+
+# Force Position Controller
+add_library(ForcePositionController src/controller/forcePositionController.cpp )
+add_dependencies(ForcePositionController roboy_middleware_msgs_generate_messages_cpp roboy_control_msgs_generate_messages_cpp)
+target_link_libraries(ForcePositionController ${catkin_LIBRARIES} CardsflowHardwareInterface)
+
 # kindyn library
 add_library(kindyn SHARED
 		src/robot.cpp
@@ -80,7 +107,48 @@ add_library(kindyn SHARED
 		include/kindyn/robot.hpp
 		include/kindyn/cable.hpp)
 add_dependencies(kindyn roboy_simulation_msgs_generate_messages_cpp roboy_simulation_msgs_msgs_generate_messages_cpp)
-target_link_libraries(kindyn ${catkin_LIBRARIES} ${iDynTree_LIBRARIES} ${qpOASES_LIBRARIES} ${OpenMP_CXX_libraries})
+target_link_libraries(kindyn ${catkin_LIBRARIES} ${iDynTree_LIBRARIES} ${qpOASES_LIBRARIES} CardsflowHardwareInterface
+		CableLengthController TorquePositionController ForcePositionController ${OpenMP_CXX_libraries})
+
+# testing idyntree
+add_executable( test_idyntree src/utilities/test_idyntree.cpp)
+target_link_libraries(test_idyntree ${iDynTree_LIBRARIES} ${catkin_LIBRARIES})
+
+# test_robot
+add_executable( test_robot src/robots/test_robot.cpp)
+target_link_libraries(test_robot ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# msj_platform
+add_executable( msj_platform src/robots/msj_platform.cpp)
+target_link_libraries(msj_platform ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# roboy_upper_body
+add_executable( roboy_upper_body src/robots/roboy_upper_body.cpp)
+target_link_libraries(roboy_upper_body ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# roboy_arcade_maschine
+add_executable( roboy_arcade_maschine src/robots/roboy_arcade_maschine.cpp)
+target_link_libraries(roboy_arcade_maschine ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# roboy_xylophone
+add_executable( roboy_xylophone src/robots/roboy_xylophone.cpp)
+target_link_libraries(roboy_xylophone ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# theClaw
+add_executable( theClaw src/robots/theClaw.cpp)
+target_link_libraries(theClaw ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# yatr
+add_executable( yatr src/robots/yatr.cpp)
+target_link_libraries(yatr ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# rikshaw
+add_executable( rikshaw src/robots/rikshaw.cpp)
+target_link_libraries(rikshaw ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
+
+# roboy_head
+add_executable( roboy_head src/robots/roboy_head.cpp)
+target_link_libraries(roboy_head ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
 
 # VRpuppet
 add_executable( VRpuppet src/robots/VRpuppet.cpp)
@@ -90,28 +158,34 @@ target_link_libraries(VRpuppet ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
 add_executable( roboy_icecream src/robots/roboy_icecream.cpp)
 target_link_libraries(roboy_icecream ${iDynTree_LIBRARIES} ${catkin_LIBRARIES} kindyn)
 
-# VRpuppet
-add_executable( nlopt_test src/nlopt_test.cpp)
-target_link_libraries(nlopt_test ${catkin_LIBRARIES} -lnlopt)
-
 #==============================================================================
 # Installation
 #==============================================================================
 install(TARGETS
 		kindyn
+		CardsflowHardwareInterface
         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 )
 
 install(TARGETS
+		msj_platform
+		roboy_upper_body
+		roboy_arcade_maschine
+		roboy_xylophone
 	    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(FILES
         package.xml
+		CableLengthController_plugin.xml
+		TorquePositionController_plugin.xml
+		ForcePositionController_plugin.xml
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
 install(DIRECTORY
+		include/kindyn/
+		include/kindyn/controller
 		DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 		FILES_MATCHING PATTERN "*.hpp"
 		)

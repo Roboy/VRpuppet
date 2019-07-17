@@ -45,17 +45,13 @@ public:
 
     void run() {
 
-        e_stop = digitalRead(e_stop_pin);
-
-        
-
+        e_stop = !digitalRead(e_stop_pin);
         if(e_stop && !e_stop_lastState){
             std_srvs::SetBool::Request msg;
             std_srvs::SetBool::Response res;
             e_stop_lastState = true;
             msg.data = e_stop;
             e_stop_client_.call(msg, res);
-
         }
         else if(e_stop && e_stop_lastState){
 

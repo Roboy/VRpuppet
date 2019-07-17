@@ -35,7 +35,7 @@
 using namespace std;
 using namespace Eigen;
 
-namespace vrpuppet {
+namespace cardsflow {
     namespace kindyn {
 
         struct ViaPoint {

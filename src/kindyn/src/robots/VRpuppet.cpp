@@ -7,7 +7,7 @@
 
 using namespace std;
 
-class VRpuppet: public vrpuppet::kindyn::Robot{
+class VRpuppet: public cardsflow::kindyn::Robot{
 public:
     /**
      * Constructor
@@ -32,45 +32,74 @@ public:
         init(urdf,cardsflow_xml,joint_names);
         // if we do not get the robot state externally, we use the forwardKinematics function to integrate the robot state
         nh->getParam("external_robot_state", external_robot_state);
+        roboy_middleware_msgs::ControlMode msg;
+        msg.request.control_mode = POSITION;
+        msg.request.set_point = 0;
+        for(auto control:motor_control_mode){
+            if(!control.second.call(msg))
+                ROS_WARN("failed to change control mode to position");
+        }
         update();
+
+        for(int i=0;i<6;i++)
+            l_offset[i] = l[i];
     };
     /**
-     * Updates the robot model
+     * Updates the robot model and integrates the robot model using the forwardKinematics function
+     * with a small step length
      */
     void read(){
         update();
+        if(!external_robot_state)
+            forwardKinematics(0.0001);
     };
     /**
      * Sends motor commands to the real robot
      */
     void write(){
-
+        roboy_middleware_msgs::MotorCommand msg;
+        msg.id = 69;
+        msg.motors = {0,1,2,3,4,5};
+        stringstream str;
+        float kp;
+        nh->getParam("kp",kp);
+        for(int i=0;i<6;i++){
+            float setpoint = ((l[i]-l_offset[i])-l_target[i])*kp;
+            str << setpoint << "\t";
+            if(setpoint>0){
+                msg.set_points.push_back(setpoint);
+            }else{
+                msg.set_points.push_back(100);
+            }
+        }
+        ROS_INFO_STREAM_THROTTLE(1,str.str());
+        motor_command.publish(msg);
     };
-
     ros::NodeHandlePtr nh; /// ROS nodehandle
     ros::Publisher motor_command; /// motor command publisher
+    ros::ServiceClient motor_config, sphere_left_axis0_params, sphere_left_axis1_params, sphere_left_axis2_params;
     map<string,ros::ServiceClient> motor_control_mode;
     vector<string> endeffectors = {"spine_right"}; //"head", "shoulder_left", "shoulder_right",
     map<string, vector<string>> endeffector_jointnames;
-    map<string,vector<short unsigned int>> motors = {
-            {"head",{9,10,11,12,13,14}},
-            {"shoulder_left",{0,1,2,3,4,5,6,7,8,9,10}},
-            {"shoulder_right",{0,1,2,3,4,5,6,7,8,9,11}},
-            {"spine_right",{9,10,11,12,13,14}}
-    };
-    map<string,vector<short unsigned int>> sim_motors = {
-            {"head",{36,37,35,34,32,33}},
-            {"shoulder_left",{0,1,2,3,4,5,6,7,8,9,10}},
-            {"shoulder_right",{0,1,2,3,4,5,6,7,8,9,11}},
-            {"spine_right",{11,10,13,14,12,9}}
-    };
-    map<string,vector<double>> l_offset = {
-            {"head",{0,0,0,0,0,0}},
-            {"shoulder_left",{0,0,0,0,0,0,0,0,0,0,0,0}},
-            {"shoulder_right",{0,0,0,0,0,0,0,0,0,0,0,0}},
-            {"spine_right",{0,0,0,0,0,0}}
-    };
+    vector<int> l_offset = {0,0,0,0,0,0};
+    bool external_robot_state; /// indicates if we get the robot state externally
 };
+
+/**
+ * controller manager update thread. Here you can define how fast your controllers should run
+ * @param cm pointer to the controller manager
+ */
+void update(controller_manager::ControllerManager *cm) {
+    ros::Time prev_time = ros::Time::now();
+    ros::Rate rate(100); // changing this value affects the control speed of your running controllers
+    while (ros::ok()) {
+        const ros::Time time = ros::Time::now();
+        const ros::Duration period = time - prev_time;
+        cm->update(time, period);
+        prev_time = time;
+        rate.sleep();
+    }
+}
 
 int main(int argc, char *argv[]) {
     if (!ros::isInitialized()) {
@@ -91,6 +120,12 @@ int main(int argc, char *argv[]) {
 
     VRpuppet robot(urdf, cardsflow_xml);
 
+    controller_manager::ControllerManager cm(&robot);
+
+    // we need an additional update thread, otherwise the controllers won't switch
+    thread update_thread(update, &cm);
+    update_thread.detach();
+
     ROS_INFO("STARTING ROBOT MAIN LOOP...");
 
     while(ros::ok()){
@@ -100,6 +135,8 @@ int main(int argc, char *argv[]) {
     }
 
     ROS_INFO("TERMINATING...");
+
+    update_thread.join();
 
     return 0;
 }

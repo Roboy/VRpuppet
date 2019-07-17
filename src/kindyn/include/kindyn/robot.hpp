@@ -22,8 +22,9 @@
             CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
     OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-    author: Simon Trendel ( st@gi.ai ), 2019
-    description: The Robot class implementing the Cable model of vrpuppets
+    author: Simon Trendel ( st@gi.ai ), 2018
+    description: The Robot class implementing the Cable model of CARDSflow. Users should inherit from this class and
+                 reimplement the read and write functions to match with their robots
 */
 
 #pragma once
@@ -88,7 +89,7 @@ using namespace Eigen;
 using iDynTree::toEigen;
 using iDynTree::fromEigen;
 
-namespace vrpuppet {
+namespace cardsflow {
     namespace kindyn {
         class Robot:public hardware_interface::RobotHW, public rviz_visualization{
         public:
@@ -174,12 +175,6 @@ namespace vrpuppet {
             void JointState(const sensor_msgs::JointStateConstPtr &msg);
 
             /**
-             * Callback for the joint target of the robot.
-             * @param msg message containing joint_name/angle information
-             */
-            void JointTarget(const sensor_msgs::JointStateConstPtr &msg);
-
-            /**
              * Callback for the floating base world pose. This can come from gazebo, the real robot or else where.
              * @param msg message containing the 6 DoF pose of the floating base
              */
@@ -189,13 +184,36 @@ namespace vrpuppet {
 
             VectorXd resolve_function(MatrixXd &A_eq, VectorXd &b_eq, VectorXd &f_min, VectorXd &f_max);
 
+            /**
+             * Updates the V matrix of the cable model
+             */
+            void update_V();
+
+            /**
+             * Updates the S matrix of the cable model
+             */
+            void update_S();
+
+            /**
+             * Updates the P matrix of the cable model
+             */
+            void update_P();
+
+            /**
+             * Callback for controller type change. The controller type defines how the forwardKinematics function
+             * integrates the robot states
+             * @param msg message containing the joint_name/type pair
+             */
+            void controllerType(const roboy_simulation_msgs::ControllerTypeConstPtr &msg);
+
             ros::NodeHandlePtr nh; /// ROS node handle
             boost::shared_ptr <ros::AsyncSpinner> spinner; /// async ROS spinner
             ros::Publisher robot_state_pub, tendon_state_pub, joint_state_pub; /// ROS robot pose and tendon publisher
             ros::Publisher robot_state_target_pub, tendon_state_target_pub, joint_state_target_pub; /// target publisher
-            ros::Subscriber controller_type_sub, joint_state_sub, joint_target_sub, floating_base_sub, interactive_marker_sub; /// ROS subscribers
+            ros::Subscriber controller_type_sub, joint_state_sub, floating_base_sub, interactive_marker_sub; /// ROS subscribers
             ros::ServiceServer ik_srv, ik_two_frames_srv, fk_srv;
             map<string,boost::shared_ptr<actionlib::SimpleActionServer<roboy_control_msgs::MoveEndEffectorAction>>> moveEndEffector_as;
+
 
             iDynTree::KinDynComputations kinDynComp, kinDynCompTarget; /// the full robot model
             map<string,iDynTree::KinDynComputations> ik_models; /// the robot models for each endeffector
@@ -216,6 +234,11 @@ namespace vrpuppet {
                 iDynTree::Vector3       gravity;
             }robotstate;
         public:
+            /**
+             * Integrates the robot equation of motions using odeint
+             * @param dt the integrations step length in seconds
+             */
+            void forwardKinematics(double dt);
             size_t number_of_dofs = 0; /// number of degrees of freedom of the whole robot
             vector<string> endeffectors; /// names of the endeffectors
             map<string,size_t> endeffector_index;
@@ -271,9 +294,9 @@ namespace vrpuppet {
             hardware_interface::CardsflowStateInterface cardsflow_state_interface; /// cardsflow state interface
             hardware_interface::CardsflowCommandInterface cardsflow_command_interface; /// cardsflow command interface
             bool first_update = true;
-            bool external_robot_state; /// indicates if we get the robot state externally
+            bool external_robot_target = false;
         };
     }
 }
 
-typedef boost::shared_ptr<vrpuppet::kindyn::Robot> RobotPtr; /// typedef for convenience
+typedef boost::shared_ptr<cardsflow::kindyn::Robot> RobotPtr; /// typedef for convenience
