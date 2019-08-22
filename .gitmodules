@@ -25,3 +25,6 @@
 [submodule "roboy_rqt_plugins"]
 	path = roboy_rqt_plugins
 	url = https://github.com/NexusReflex/roboy_rqt_plugins.git
+[submodule "src/m3"]
+	path = src/m3
+	url = https://github.com/NexusReflex/m3
