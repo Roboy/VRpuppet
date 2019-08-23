@@ -22,4 +22,11 @@
 [submodule "hardware/stepper_control/kicad_db"]
 	path = hardware/stepper_control/kicad_db
 	url = https://github.com/Roboy/kicad_db
+[submodule "hardware/m3"]
+	path = hardware/m3
+	url = https://github.com/NexusReflex/m3
+[submodule "src/cardsflow_rqt"]
+	path = src/cardsflow_rqt
+	url = https://github.com/CARDSflow/cardsflow_rqt/tree/bad72bc588639221b638152ef9e11f5f302248d0
+
 
