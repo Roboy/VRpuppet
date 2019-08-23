@@ -1,6 +1,6 @@
 #include "kindyn/robot.hpp"
 
-using namespace vrpuppet::kindyn;
+using namespace cardsflow::kindyn;
 
 Robot::Robot() {
     if (!ros::isInitialized()) {
@@ -19,6 +19,7 @@ Robot::Robot() {
     tendon_state_target_pub = nh->advertise<roboy_simulation_msgs::Tendon>("/tendon_state_target", 1);
     joint_state_target_pub = nh->advertise<roboy_simulation_msgs::JointState>("/joint_state_target", 1);
     fmt = Eigen::IOFormat(4, 0, " ", ";\n", "", "", "[", "]");
+    nh->getParam("external_robot_target", external_robot_target);
 }
 
 Robot::~Robot() {
@@ -154,16 +155,38 @@ void Robot::init(string urdf_file_path, string viapoints_file_path, vector<strin
     q_min.resize(number_of_dofs);
     q_max.resize(number_of_dofs);
 
+    controller_type.resize(number_of_cables, CARDSflow::ControllerType::cable_length_controller);
     joint_state.resize(number_of_dofs);
     motor_state.resize(number_of_cables);
     // ros control
     for (int joint = 0; joint < number_of_dofs; joint++) {
         ROS_INFO("initializing controllers for joint %d %s", joint, joint_names[joint].c_str());
+        // connect and register the cardsflow state interface
+        hardware_interface::CardsflowStateHandle state_handle(joint_names[joint], joint, &q[joint], &qd[joint],
+                                                              &qdd[joint], &L, &M, &CG
+
+        );
+        cardsflow_state_interface.registerHandle(state_handle);
+
+        // connect and register the cardsflow command interface
+        hardware_interface::CardsflowHandle pos_handle(cardsflow_state_interface.getHandle(joint_names[joint]),
+                                                       &q_target[joint], &qd_target[joint], &torques[joint], &ld[joint]);
+        cardsflow_command_interface.registerHandle(pos_handle);
+        // connect and register the cardsflow state interface
+        hardware_interface::JointStateHandle state_handle2(joint_names[joint], &q[joint], &qd[joint], &q_target[joint]);
+        joint_state_interface.registerHandle(state_handle2);
+
+        // connect and register the cardsflow command interface
+        hardware_interface::JointHandle torque_handle(joint_state_interface.getHandle(joint_names[joint]),
+                                                      &torques[joint]);
+        joint_command_interface.registerHandle(torque_handle);
         joint_state[joint][0] = 0;
         joint_state[joint][1] = 0;
         q_min[joint] = model.getJoint(joint)->getMinPosLimit(0);
         q_max[joint] = model.getJoint(joint)->getMaxPosLimit(0);
     }
+    registerInterface(&cardsflow_command_interface);
+    registerInterface(&joint_command_interface);
 
     M.resize(number_of_dofs + 6, number_of_dofs + 6);
     CG.resize(number_of_dofs);
@@ -203,6 +226,14 @@ void Robot::init(string urdf_file_path, string viapoints_file_path, vector<strin
         motor_state[muscle_index][1] = 0;
         muscle_index++;
     }
+
+    update_S();
+    update_V();
+    update_P();
+
+    W = P * S;
+    L = V * W;
+    L_t = -L.transpose();
 
     qp_solver = SQProblem(number_of_cables, number_of_dofs);
 
@@ -301,8 +332,8 @@ void Robot::init(string urdf_file_path, string viapoints_file_path, vector<strin
         k++;
     }
 
+    controller_type_sub = nh->subscribe("/controller_type", 100, &Robot::controllerType, this);
     joint_state_sub = nh->subscribe("/joint_states", 100, &Robot::JointState, this);
-    joint_target_sub = nh->subscribe("/joint_targets", 100, &Robot::JointTarget, this);
     floating_base_sub = nh->subscribe("/floating_base", 100, &Robot::FloatingBase, this);
     ik_srv = nh->advertiseService("/ik", &Robot::InverseKinematicsService, this);
     ik_two_frames_srv = nh->advertiseService("/ik_multiple_frames", &Robot::InverseKinematicsMultipleFramesService, this);
@@ -379,9 +410,6 @@ VectorXd Robot::resolve_function(MatrixXd &A_eq, VectorXd &b_eq, VectorXd &f_min
 }
 
 void Robot::update() {
-    if(!external_robot_state) //
-        q = q_target;
-
     ros::Time t0 = ros::Time::now();
     iDynTree::fromEigen(robotstate.world_H_base, world_H_base);
     iDynTree::toEigen(robotstate.jointPos) = q;
@@ -405,10 +433,13 @@ void Robot::update() {
         link_to_world_transform[i] = pose;
         frame_transform[i] = iDynTree::toEigen(model.getFrameTransform(i).asHomogeneousTransform());
     }
+    P.setZero(6 * number_of_links, 6 * number_of_links);
+    P.block(0, 0, 6, 6).setIdentity(6, 6);
     for (int k = 1; k < number_of_links; k++) {
         for (int a = 1; a <= k; a++) {
             link_to_link_transform[k * number_of_links + a] =
                     world_to_link_transform[k].block(0, 0, 3, 3) * world_to_link_transform[a].block(0, 0, 3, 3);
+            P.block(6 * k + 3, 6 * a + 3, 3, 3) = link_to_link_transform[k * number_of_links + a];
         }
     }
 
@@ -428,6 +459,60 @@ void Robot::update() {
             j++;
         }
         i++;
+    }
+//    ROS_INFO_THROTTLE(1,"model update takes %f seconds", (ros::Time::now()-t0).toSec());
+//    t0 = ros::Time::now();
+    update_V();
+//    ROS_INFO_THROTTLE(1,"update V takes %f seconds", (ros::Time::now()-t0).toSec());
+//    t0 = ros::Time::now();
+    update_P();
+//    ROS_INFO_THROTTLE(1,"update P takes %f seconds", (ros::Time::now()-t0).toSec());
+
+    W = P * S;
+    L = V * W;
+    L_t = -L.transpose();
+
+//    ROS_INFO_STREAM_THROTTLE(5, "Lt = \n" << L_t.format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "P = \n" << P.format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "V = \n" << V.format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "W = \n" << W.format(fmt));
+//    ROS_INFO_STREAM_THROTTLE(5, "S = \n" << S.format(fmt));
+    torque_position_controller_active = force_position_controller_active = cable_length_controller_active = false;
+    for(auto type:controller_type){
+        switch(type){
+            case CARDSflow::ControllerType::cable_length_controller:
+                cable_length_controller_active = true;
+                break;
+            case CARDSflow::ControllerType::torque_position_controller:
+                torque_position_controller_active = true;
+                break;
+            case CARDSflow::ControllerType::force_position_controller:
+                force_position_controller_active = true;
+                break;
+        }
+    }
+    for(int i = 0; i<endeffectors.size();i++) {
+        Ld[i].setZero();
+        int dof_offset = endeffector_dof_offset[i];
+        for (int j = dof_offset; j < endeffector_number_of_dofs[i] + dof_offset; j++) {
+            Ld[i] -= ld[j];
+        }
+    }
+
+    /*
+    ROS_INFO_STREAM_THROTTLE(5, "q_target " << q_target.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "qdd " << qdd.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "qd " << qd.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "q " << q.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "l " << l.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "ld " << Ld[0].transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "torques " << torques.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "cable_forces " << cable_forces.transpose().format(fmt));
+    */
+
+    // for the cable force controller with do a centralized update
+    if(force_position_controller_active){
+        cable_forces = resolve_function(L_t, torques, f_min, f_max);
     }
 
     if ((1.0 / (ros::Time::now() - last_visualization).toSec()) < 30) {
@@ -528,14 +613,215 @@ void Robot::update() {
         }
         last_visualization = ros::Time::now();
     }
-//    ROS_INFO_STREAM_THROTTLE(5, "q_target " << q_target.transpose().format(fmt));
-//    ROS_INFO_STREAM_THROTTLE(5, "qdd " << qdd.transpose().format(fmt));
-//    ROS_INFO_STREAM_THROTTLE(5, "qd " << qd.transpose().format(fmt));
-//    ROS_INFO_STREAM_THROTTLE(5, "q " << q.transpose().format(fmt));
-//    ROS_INFO_STREAM_THROTTLE(5, "l " << l.transpose().format(fmt));
-//    ROS_INFO_STREAM_THROTTLE(5, "ld " << Ld[0].transpose().format(fmt));
-//    ROS_INFO_STREAM_THROTTLE(5, "torques " << torques.transpose().format(fmt));
-//    ROS_INFO_STREAM_THROTTLE(5, "cable_forces " << cable_forces.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "q_target " << q_target.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "qdd " << qdd.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "qd " << qd.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "q " << q.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "l " << l.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "ld " << Ld[0].transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "torques " << torques.transpose().format(fmt));
+    ROS_INFO_STREAM_THROTTLE(5, "cable_forces " << cable_forces.transpose().format(fmt));
+}
+
+void Robot::forwardKinematics(double dt) {
+    const iDynTree::Model &model = kinDynComp.model();
+
+    if(torque_position_controller_active) // we do the calculations only if there is a controller active
+        qdd_torque_control = M.block(6, 6, number_of_dofs, number_of_dofs).inverse() * (-torques - CG);
+    if(force_position_controller_active) // we do the calculations only if there is a controller active
+        qdd_force_control = M.block(6, 6, number_of_dofs, number_of_dofs).inverse() * (L_t * cable_forces - CG);
+
+//    #pragma omp parallel for
+    for(int i = 0; i<endeffectors.size();i++) {
+        int dof_offset = endeffector_dof_offset[i];
+        MatrixXd L_endeffector = L.block(0,dof_offset,number_of_cables,endeffector_number_of_dofs[i]);
+        MatrixXd L_endeffector_inv = EigenExtension::Pinv(L_endeffector);
+        VectorXd qd_temp =  L_endeffector_inv * Ld[i];
+
+        for (int j = dof_offset; j < endeffector_number_of_dofs[i]+dof_offset; j++) {
+            switch(controller_type[j]){
+                case CARDSflow::ControllerType::torque_position_controller:
+                    boost::numeric::odeint::integrate(
+                            [this, j](const state_type &x, state_type &dxdt, double t) {
+                                dxdt[1] = qdd_torque_control[j];
+                                dxdt[0] = x[1];
+                            }, joint_state[j], integration_time, integration_time + dt, dt);
+                    qd[j] = joint_state[j][1];
+                    q[j] = joint_state[j][0];
+                    break;
+                case CARDSflow::ControllerType::cable_length_controller:
+                    boost::numeric::odeint::integrate(
+                            [this, j, qd_temp, dof_offset](const state_type &x, state_type &dxdt, double t) {
+                                dxdt[1] = 0;
+                                dxdt[0] = qd_temp[j-dof_offset];
+                            }, joint_state[j], integration_time, integration_time + dt, dt);
+                    qd[j] = qd_temp[j-dof_offset];
+                    q[j] = joint_state[j][0];
+                    break;
+                case CARDSflow::ControllerType::force_position_controller:
+                    boost::numeric::odeint::integrate(
+                            [this, j](const state_type &x, state_type &dxdt, double t) {
+                                dxdt[1] = qdd_force_control[j];
+                                dxdt[0] = x[1];
+                            }, joint_state[j], integration_time, integration_time + dt, dt);
+                    qd[j] = joint_state[j][1];
+                    q[j] = joint_state[j][0];
+                    break;
+            }
+//        ROS_INFO("%s control type %d", joint_names[j].c_str(), controller_type[j]);
+        }
+        for (int l = 0; l < number_of_cables; l++) {
+            boost::numeric::odeint::integrate(
+                    [this, i, l](const state_type &x, state_type &dxdt, double t) {
+                        dxdt[1] = 0;
+                        dxdt[0] = Ld[i][l];
+                    }, motor_state[l], integration_time, integration_time + dt, dt);
+            l_int[l] = motor_state[l][0];
+        }
+    }
+    // respect joint limits
+    for(int i=0;i<number_of_joints;i++){
+        if(q[i]<q_min[i]){
+            q[i] = q_min[i];
+            qd[i] = 0;
+        }
+        if(q[i]>q_max[i]){
+            q[i] = q_max[i];
+            qd[i] = 0;
+        }
+    }
+
+    integration_time += dt;
+    ROS_INFO_THROTTLE(5, "forward kinematics calculated for %lf s", integration_time);
+}
+
+void Robot::update_V() {
+    static int counter = 0;
+    V.setZero(number_of_cables, 6 * number_of_links);
+//    #pragma omp parallel for
+    for (int muscle_index = 0; muscle_index < cables.size(); muscle_index++) {
+        for (auto &segment:segments[muscle_index]) {
+            if (segment.first->link_name != segment.second->link_name) { // ignore redundant cables
+                // V term associated with segment translation
+                Vector3d segmentVector;
+                segmentVector = segment.second->global_coordinates - segment.first->global_coordinates;
+                segmentVector.normalize();
+
+                int k = segment.first->link_index;
+                if (k > 0) {
+                    // Total V term in translations
+                    Vector3d V_ijk_T = -world_to_link_transform[k].block(0, 0, 3, 3) * segmentVector;
+
+                    Vector3d temp_vec2 = segment.first->local_coordinates;
+
+                    Vector3d V_itk_T = temp_vec2.cross(V_ijk_T);
+
+                    V.block(muscle_index, 6 * k, 1, 3) = V_ijk_T.transpose();
+                    V.block(muscle_index, 6 * k + 3, 1, 3) = V_itk_T.transpose();
+                }
+
+                k = segment.second->link_index;
+                if (k > 0) {
+                    // Total V term in translations
+                    Vector3d V_ijk_T = world_to_link_transform[k].block(0, 0, 3, 3) * segmentVector;
+
+                    Vector3d temp_vec2 = segment.second->local_coordinates;
+
+                    Vector3d V_itk_T = temp_vec2.cross(V_ijk_T);
+
+                    V.block(muscle_index, 6 * k, 1, 3) = V.block(muscle_index, 6 * k, 1, 3) + V_ijk_T.transpose();
+                    V.block(muscle_index, 6 * k + 3, 1, 3) =
+                            V.block(muscle_index, 6 * k + 3, 1, 3) + V_itk_T.transpose();
+                }
+            }
+        }
+    }
+    counter++;
+}
+
+void Robot::update_S() {
+    S.setZero(6 * number_of_links, number_of_dofs);
+    int k = 1;
+    for (auto &axis:joint_axis) {
+        S.block(6 * k, k - 1, 6, 1) = axis;
+        k++;
+    }
+//    ROS_INFO_STREAM("S_t = " << S.transpose().format(fmt));
+}
+
+void Robot::update_P() {
+    P.setZero(6 * number_of_links, 6 * number_of_links);
+    P.block(0, 0, 6, 6).setIdentity(6, 6);
+
+    Matrix3d R_ka;
+    Eigen::Matrix<double, 6, 6> Pak;
+
+    const iDynTree::Model &model = kinDynComp.model();
+
+    static int counter = 0;
+//    #pragma omp parallel for
+    for (int k = 1; k < number_of_links; k++) {
+        Matrix4d transformMatrix_k = world_to_link_transform[k];
+        Matrix3d R_k0 = transformMatrix_k.block(0, 0, 3, 3);
+        for (int a = 1; a <= k; a++) {
+            Matrix4d transformMatrix_a = world_to_link_transform[a];
+            Matrix3d R_0a = transformMatrix_a.block(0, 0, 3, 3).transpose();
+            R_ka = R_k0 * R_0a;
+
+            Matrix3d R_pe;
+            Vector3d r_OP, r_OG;
+            r_OP.setZero();
+
+            R_pe = AngleAxisd(q[a - 1], -joint_axis[a - 1].block(3, 0, 3, 1));
+
+            // absolute joint location
+            Matrix4d pose = iDynTree::toEigen(kinDynComp.getWorldTransform(a).asHomogeneousTransform());
+            r_OP = pose.topRightCorner(3,1);
+
+            // absolute com location
+            r_OG = link_to_world_transform[k].topRightCorner(3,1);
+
+            Matrix3d PaK_2_1 = EigenExtension::SkewSymmetric2(-r_OP + R_ka.transpose() * r_OG);
+            Matrix3d PaK_2 = -R_ka * PaK_2_1;
+            Matrix3d PaK_1 = R_ka * R_pe;
+            Pak.block(0, 0, 3, 3) = PaK_1;
+            Pak.block(0, 3, 3, 3) = PaK_2;
+            Pak.block(3, 0, 3, 3) = Matrix3d::Zero(3, 3);
+            Pak.block(3, 3, 3, 3) = R_ka;
+            P.block(6 * k, 6 * a, 6, 6) = Pak;
+        }
+    }
+    counter++;
+//    static int counter = 0;
+//    Matrix3d R_pe;
+//    Vector3d r_OP, r_OG;
+//    Matrix3d skew;
+//    for (int k = 1; k < number_of_links; k++) {
+//        for (int a = 1; a <= k; a++) {
+//            R_pe = AngleAxisd(q[a - 1], joint_axis[a - 1].topLeftCorner(3, 1));
+//            r_OP = link_to_world_transform[a].topLeftCorner(3, 3) * frame_transform[a].topRightCorner(3, 1);
+//            r_OG = world_to_link_transform[k].topLeftCorner(3, 3) * link_to_world_transform[k].topRightCorner(3, 1);
+//            P.block(6 * k, 6 * a, 3, 3) = link_to_link_transform[k * number_of_links + a] * R_pe.transpose();
+//            Vector3d v = -r_OP + link_to_link_transform[k * number_of_links + a].transpose() * r_OG;
+//            skew << 0, -v(2), v(1),
+//                    v(2), 0, -v(0),
+//                    -v(1), v(0), 0;
+//            P.block(6 * k, 6 * a + 3, 3, 3) = -link_to_link_transform[k * number_of_links + a] * skew;
+//        }
+//    }
+//
+//    counter++;
+}
+
+void Robot::controllerType(const roboy_simulation_msgs::ControllerTypeConstPtr &msg) {
+    auto it = find(joint_names.begin(), joint_names.end(),msg->joint_name);
+    if(it!=joint_names.end()) {
+        ROS_INFO("%s changed controller to %s", msg->joint_name.c_str(),
+                 (msg->type==CARDSflow::ControllerType::cable_length_controller?"cable_length_controller":
+                  msg->type==CARDSflow::ControllerType::torque_position_controller?"torque_position_controller":
+                  msg->type==CARDSflow::ControllerType::force_position_controller?"force_position_controller":"UNKNOWN"));
+        controller_type[distance(joint_names.begin(), it)] = msg->type;
+    }
 }
 
 bool Robot::ForwardKinematicsService(roboy_middleware_msgs::ForwardKinematics::Request &req,
@@ -765,21 +1051,6 @@ void Robot::JointState(const sensor_msgs::JointStateConstPtr &msg) {
         if (joint_index != iDynTree::JOINT_INVALID_INDEX) {
             q(joint_index) = msg->position[i];
             qd(joint_index) = msg->velocity[i];
-        } else {
-            ROS_ERROR("joint %s not found in model", joint.c_str());
-        }
-        i++;
-    }
-}
-
-void Robot::JointTarget(const sensor_msgs::JointStateConstPtr &msg){
-    const iDynTree::Model &model = kinDynComp.getRobotModel();
-    int i = 0;
-    for (string joint:msg->name) {
-        int joint_index = model.getJointIndex(joint);
-        if (joint_index != iDynTree::JOINT_INVALID_INDEX) {
-            q_target(joint_index) = msg->position[i];
-            qd_target(joint_index) = msg->velocity[i];
         } else {
             ROS_ERROR("joint %s not found in model", joint.c_str());
         }
