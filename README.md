@@ -29,6 +29,7 @@ In a second terminal window navigate to your catkin workspace, source it as seen
 
 and then from the dropdown menu *Plugins->Roboy* choose *vr puppets demo*.  
 
+![alt text](https://github.com/NexusReflex/VRpuppet/blob/master/docs/imgs/gui.png "gui")  
 
 When operating together with OUI team you might also need to set up a **rosbridge server**, if OUI doesn't have a Linux partition on hand.  
 
